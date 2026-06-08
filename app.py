@@ -4,11 +4,9 @@ import json
 import os
 from datetime import datetime, timedelta
 
-# --- 1. GOOGLE LOGIN CONFIGURATION ---
-# In production, you will put these client IDs into Streamlit Secrets
+# --- 1. CONFIGURATION & SECRETS ---
 st.set_page_config(page_title="Secure Flashcards", page_icon="🧠", layout="centered")
 
-# 1. Fetch your secrets securely using native Streamlit syntax
 try:
     cookie_secret = st.secrets["STREAMLIT_COOKIE_SECRET"]
     client_id = st.secrets["GOOGLE_CLIENT_ID"]
@@ -17,30 +15,43 @@ except KeyError as e:
     st.error(f"❌ Missing Secret Key in Dashboard: {e}")
     st.stop()
 
-# 2. Pass them directly into the Authenticator
+# Build the temporary credentials structure required by the package
+google_creds = {
+    "web": {
+        "client_id": client_id,
+        "client_secret": client_secret,
+        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+        "token_uri": "https://oauth2.googleapis.com/token",
+        "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs"
+    }
+}
+
+# Write it to a temporary file locally so the package can read it
+TEMP_CREDS_FILE = "temp_google_creds.json"
+with open(TEMP_CREDS_FILE, "w") as f:
+    json.dump(google_creds, f)
+
+# Initialize the authenticator with the exact parameters expected by PyPI package
 authenticator = Authenticate(
-    secret_token=cookie_secret,
+    secret_credentials_path=TEMP_CREDS_FILE,
     cookie_name="google_auth_cookie",
-    client_id=client_id,
-    client_secret=client_secret,
-    redirect_uri="https://daily-flashcards.streamlit.app", # Must EXACTLY match Google Console
+    cookie_key=cookie_secret,
+    redirect_uri="https://daily-flashcards.streamlit.app",
 )
 
-# Check if the user is logged in
-authenticator.check_authenticity()
+# Note the package spelling: check_authentification
+authenticator.check_authentification()
 
 if not st.session_state.get("connected", False):
     st.title("🧠 Secure Daily Flashcards")
     st.write("Please sign in with your Google account to access your private study deck.")
-    # Render the Google Sign-In button
     authenticator.login()
     st.stop()
 
 # --- 2. USER IS AUTHENTICATED ---
-# Get the unique user information from Google
 user_email = st.session_state.get("user_info", {}).get("email")
 user_name = st.session_state.get("user_info", {}).get("name")
-user_id = st.session_state.get("user_info", {}).get("id") # Unique numerical Google ID
+user_id = st.session_state.get("oauth_id") # Unique ID updated by the package
 
 # Add a logout button in the sidebar
 with st.sidebar:
