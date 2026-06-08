@@ -8,14 +8,22 @@ from datetime import datetime, timedelta
 # In production, you will put these client IDs into Streamlit Secrets
 st.set_page_config(page_title="Secure Flashcards", page_icon="🧠", layout="centered")
 
-# Initialize Google Auth
-# Replace these placeholder strings with your actual Google Cloud Console credentials
+# 1. Fetch your secrets securely using native Streamlit syntax
+try:
+    cookie_secret = st.secrets["STREAMLIT_COOKIE_SECRET"]
+    client_id = st.secrets["GOOGLE_CLIENT_ID"]
+    client_secret = st.secrets["GOOGLE_CLIENT_SECRET"]
+except KeyError as e:
+    st.error(f"❌ Missing Secret Key in Dashboard: {e}")
+    st.stop()
+
+# 2. Pass them directly into the Authenticator
 authenticator = Authenticate(
-    secret_token=st.secrets["STREAMLIT_COOKIE_SECRET"],
+    secret_token=cookie_secret,
     cookie_name="google_auth_cookie",
-    client_id=st.secrets["GOOGLE_CLIENT_ID"],
-    client_secret=st.secrets["GOOGLE_CLIENT_SECRET"],
-    redirect_uri="https://daily-flashcards.streamlit.app",
+    client_id=client_id,
+    client_secret=client_secret,
+    redirect_uri="https://daily-flashcards.streamlit.app", # Must EXACTLY match Google Console
 )
 
 # Check if the user is logged in
