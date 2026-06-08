@@ -1,48 +1,94 @@
 import streamlit as st
+from streamlit_google_auth import Authenticate
 import json
 import os
 from datetime import datetime, timedelta
 
-DATA_FILE = "flashcards_data.json"
+# --- 1. GOOGLE LOGIN CONFIGURATION ---
+# In production, you will put these client IDs into Streamlit Secrets
+st.set_page_config(page_title="Secure Flashcards", page_icon="🧠", layout="centered")
 
-st.set_page_config(page_title="Smart Flashcards", page_icon="🧠", layout="centered")
+# Initialize Google Auth
+# Replace these placeholder strings with your actual Google Cloud Console credentials
+authenticator = Authenticate(
+    secret_token=os.environ.get("STREAMLIT_COOKE_SECRET"),
+    cookie_name="google_auth_cookie",
+    client_id=os.environ.get("GOOGLE_CLIENT_ID"),
+    client_secret=os.environ.get("GOOGLE_CLIENT_SECRET"),
+    redirect_uri="https://daily-flashcards.streamlit.app",
+)
 
-def load_data():
+# Check if the user is logged in
+authenticator.check_authenticity()
+
+if not st.session_state.get("connected", False):
+    st.title("🧠 Secure Daily Flashcards")
+    st.write("Please sign in with your Google account to access your private study deck.")
+    # Render the Google Sign-In button
+    authenticator.login()
+    st.stop()
+
+# --- 2. USER IS AUTHENTICATED ---
+# Get the unique user information from Google
+user_email = st.session_state.get("user_info", {}).get("email")
+user_name = st.session_state.get("user_info", {}).get("name")
+user_id = st.session_state.get("user_info", {}).get("id") # Unique numerical Google ID
+
+# Add a logout button in the sidebar
+with st.sidebar:
+    st.write(f"Logged in as: **{user_name}**")
+    st.caption(user_email)
+    if st.button("Log Out"):
+        authenticator.logout()
+        st.rerun()
+
+# --- 3. MULTI-USER STORAGE LOGIC ---
+DATA_FILE = "global_flashcards_db.json"
+
+def load_all_users_data():
     if os.path.exists(DATA_FILE):
         with open(DATA_FILE, "r") as f:
-            raw_data = json.load(f)
-            # Backward compatibility: Upgrade old data structure if needed
-            for date, card in raw_data.items():
-                if "level" not in card:
-                    card["level"] = 1
-                    card["streak"] = 0
-                    card["reviews"] = 0
-            return raw_data
+            return json.load(f)
     return {}
 
-def save_data(data):
+def save_all_users_data(global_data):
     with open(DATA_FILE, "w") as f:
-        json.dump(data, f, indent=4)
+        json.dump(global_data, f, indent=4)
 
-def get_today_str():
-    return datetime.now().strftime("%Y-%m-%d")
+def get_user_cards(user_key):
+    global_data = load_all_users_data()
+    # Separate space inside the JSON file for this specific user ID
+    user_space = global_data.get(user_key, {})
+    
+    # Backward compatibility checking inside user space
+    for date, card in user_space.items():
+        if "level" not in card:
+            card["level"] = 1
+            card["streak"] = 0
+            card["reviews"] = 0
+    return user_space
 
-# Session state initialization
+def save_user_cards(user_key, user_cards):
+    global_data = load_all_users_data()
+    global_data[user_key] = user_cards
+    save_all_users_data(global_data)
+
+# Load data strictly for the logged-in user
+user_key = f"user_{user_id}"
+data = get_user_cards(user_key)
+today_str = datetime.now().strftime("%Y-%m-%d")
+
+# Initialize session states for tracking review progress
 if "review_index" not in st.session_state:
     st.session_state.review_index = 0
 if "show_answer" not in st.session_state:
     st.session_state.show_answer = False
 
-data = load_data()
-today_str = get_today_str()
-
-st.title("🧠 Smart Flashcards")
-st.write("Track your learning progress and master long-term memory.")
+st.title(f"🧠 {user_name.split()[0]}'s Flashcards")
 st.divider()
 
-# --- SECTION 1: METRICS DASHBOARD ---
+# --- SECTION 4: METRICS DASHBOARD ---
 st.header("📊 Your Memory Stats")
-
 total_cards = len(data)
 memorized_cards = sum(1 for card in data.values() if card.get("level", 1) >= 5)
 learning_cards = total_cards - memorized_cards
@@ -52,21 +98,17 @@ col1, col2, col3 = st.columns(3)
 with col1:
     st.metric("Total Cards", total_cards)
 with col2:
-    st.metric("Fully Memorized (Lvl 5)", memorized_cards, delta=f"{memorized_cards} mastered" if memorized_cards else None)
+    st.metric("Mastered (Lvl 5)", memorized_cards)
 with col3:
-    st.metric("Still Learning", learning_cards)
-
-# Quick insight message
-if total_cards > 0:
-    st.caption(f"📈 Your current average correct streak across all cards is **{avg_streak:.1f}**.")
+    st.metric("Learning", learning_cards)
 
 st.divider()
 
-# --- SECTION 2: ADD DAILY CARD ---
+# --- SECTION 5: ADD DAILY CARD ---
 st.header("📝 Today's New Card")
 if today_str in data:
-    st.success(f"✨ Today's card is locked in!")
-    st.info(f"**Front:** {data[today_str]['front']}  \n**Back:** {data[today_str]['back']}  \n**Current Mastery:** Level {data[today_str]['level']}/5")
+    st.success("✨ Today's card is locked in!")
+    st.info(f"**Front:** {data[today_str]['front']}  \n**Back:** {data[today_str]['back']}")
 else:
     with st.form("add_card_form", clear_on_submit=True):
         front = st.text_input("Front (Concept/Question)")
@@ -82,18 +124,17 @@ else:
                     "streak": 0,
                     "reviews": 0
                 }
-                save_data(data)
-                st.success("Card saved! Dashboard updated.")
+                save_user_cards(user_key, data)
+                st.success("Card saved!")
                 st.rerun()
             else:
                 st.error("Please fill out both sides of the card.")
 
 st.divider()
 
-# --- SECTION 3: GENERATE REVIEW QUEUE ---
+# --- SECTION 6: GENERATE REVIEW QUEUE ---
 today_dt = datetime.now()
 review_queue = []
-
 milestones = [
     {"label": "Exactly 1 Week Ago", "days": 7},
     {"label": "Exactly 2 Weeks Ago", "days": 14},
@@ -102,7 +143,6 @@ milestones = [
     {"label": "Exactly 2 Months Ago", "days": 60},
 ]
 
-# 1. Grab Milestone Cards
 for milestone in milestones:
     target_date_str = (today_dt - timedelta(days=milestone["days"])).strftime("%Y-%m-%d")
     if target_date_str in data:
@@ -110,84 +150,52 @@ for milestone in milestones:
         if not any(q_card == card for _, q_card, _ in review_queue):
             review_queue.append((f"{milestone['label']}", card, target_date_str))
 
-# 2. Grab Rolling Past Week Cards
 for i in range(7):
     check_date_str = (today_dt - timedelta(days=i)).strftime("%Y-%m-%d")
     if check_date_str in data:
         card = data[check_date_str]
         if not any(q_card == card for _, q_card, _ in review_queue):
-            review_queue.append((f"Past Week", card, check_date_str))
+            review_queue.append(("Past Week", card, check_date_str))
 
-# --- SECTION 4: INTERACTIVE REVIEW INTERFACE ---
+# --- SECTION 7: INTERACTIVE REVIEW INTERFACE ---
 st.header("🧠 Today's Review")
 
 if not review_queue:
-    st.write("No cards to review yet. Keep adding them daily!")
+    st.write("No reviews due today.")
 elif st.session_state.review_index >= len(review_queue):
     st.balloons()
-    st.success("🎉 You finished all of today's reviews! Statistics updated.")
-    if st.button("Review Queue Again", use_container_width=True):
+    st.success("🎉 Review complete!")
+    if st.button("Review Again", use_container_width=True):
         st.session_state.review_index = 0
         st.session_state.show_answer = False
         st.rerun()
 else:
     label, current_card, original_date = review_queue[st.session_state.review_index]
-    
-    # Progress Bar
     progress = (st.session_state.review_index) / len(review_queue)
     st.progress(progress, text=f"Card {st.session_state.review_index + 1} of {len(review_queue)}")
     
-    # Card Meta Info
-    st.markdown(f"**Origin:** {label} ({original_date}) | **Mastery Level:** {current_card['level']}/5 | **Streak:** {current_card['streak']} 🔥")
-    
-    # Styled Flashcard Concept box
-    st.markdown(
-        f"""
-        <div style="background-color: #f0f2f6; padding: 20px; border-radius: 10px; border-left: 5px solid #ff4b4b; margin-bottom: 20px;">
-            <p style="color: #31333F; font-size: 14px; margin: 0;">CONCEPT</p>
-            <h3 style="color: #31333F; margin-top: 5px;">{current_card['front']}</h3>
-        </div>
-        """, 
-        unsafe_allow_html=True,
-    )
+    st.markdown(f"**Origin:** {label} | **Level:** {current_card['level']}/5 | **Streak:** {current_card['streak']} 🔥")
+    st.markdown(f'<div style="background-color: #f0f2f6; padding: 20px; border-radius: 10px; border-left: 5px solid #ff4b4b; margin-bottom: 20px;"><h3 style="color: #31333F;">{current_card["front"]}</h3></div>', unsafe_allow_html=True)
 
     if st.session_state.show_answer:
-        st.markdown(
-            f"""
-            <div style="background-color: #e8f5e9; padding: 20px; border-radius: 10px; border-left: 5px solid #4caf50; margin-bottom: 20px;">
-                <p style="color: #2e7d32; font-size: 14px; margin: 0;">ANSWER</p>
-                <h3 style="color: #2e7d32; margin-top: 5px;">{current_card['back']}</h3>
-            </div>
-            """, 
-            unsafe_allow_html=True,
-        )
+        st.markdown(f'<div style="background-color: #e8f5e9; padding: 20px; border-radius: 10px; border-left: 5px solid #4caf50; margin-bottom: 20px;"><h3 style="color: #2e7d32;">{current_card["back"]}</h3></div>', unsafe_allow_html=True)
         
-        # Performance Tracking Buttons
-        st.write("How did you do?")
         pass_col, fail_col = st.columns(2)
-        
         with pass_col:
-            if st.button("✅ I Got It Right!", type="primary", use_container_width=True):
-                # Upgrade card metrics
+            if st.button("✅ Got It", type="primary", use_container_width=True):
                 data[original_date]["level"] = min(5, current_card["level"] + 1)
                 data[original_date]["streak"] += 1
                 data[original_date]["reviews"] += 1
-                save_data(data)
-                
-                # Move to next card
+                save_user_cards(user_key, data)
                 st.session_state.review_index += 1
                 st.session_state.show_answer = False
                 st.rerun()
-                
         with fail_col:
-            if st.button("❌ I Missed It", type="secondary", use_container_width=True):
-                # Penalty for missing card
-                data[original_date]["level"] = 1 # Drops back to level 1
-                data[original_date]["streak"] = 0 # Resets streak
+            if st.button("❌ Missed It", type="secondary", use_container_width=True):
+                data[original_date]["level"] = 1
+                data[original_date]["streak"] = 0
                 data[original_date]["reviews"] += 1
-                save_data(data)
-                
-                # Move to next card
+                save_user_cards(user_key, data)
                 st.session_state.review_index += 1
                 st.session_state.show_answer = False
                 st.rerun()
