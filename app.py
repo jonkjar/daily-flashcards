@@ -36,7 +36,7 @@ authenticator = Authenticate(
     secret_credentials_path=TEMP_CREDS_FILE,
     cookie_name="google_auth_cookie",
     cookie_key=cookie_secret,
-    redirect_uri="https://daily-flashcards.streamlit.app/component/streamlit_google_auth.authenticate/"
+    redirect_uri="https://daily-flashcards.streamlit.app"
 )
 
 # Note the package spelling: check_authentification
