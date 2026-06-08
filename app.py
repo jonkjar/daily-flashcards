@@ -11,7 +11,7 @@ st.set_page_config(page_title="Secure Flashcards", page_icon="🧠", layout="cen
 # Initialize Google Auth
 # Replace these placeholder strings with your actual Google Cloud Console credentials
 authenticator = Authenticate(
-    secret_token=os.environ.get("STREAMLIT_COOKE_SECRET"),
+    secret_token=os.environ.get("STREAMLIT_COOKIE_SECRET"),
     cookie_name="google_auth_cookie",
     client_id=os.environ.get("GOOGLE_CLIENT_ID"),
     client_secret=os.environ.get("GOOGLE_CLIENT_SECRET"),
