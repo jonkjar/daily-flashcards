@@ -5,27 +5,6 @@ import base64
 from datetime import datetime, timedelta
 from streamlit_oauth import OAuth2Component
 
-st.markdown("""
-    <style>
-    .stApp { background-color: #f8f9fa; }
-    .card-box { 
-        background-color: white; 
-        padding: 2rem; 
-        border-radius: 12px; 
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1); 
-        border: 1px solid #e9ecef;
-        margin-bottom: 1.5rem;
-    }
-    .metric-card {
-        background-color: #ffffff;
-        padding: 1rem;
-        border-radius: 8px;
-        border-left: 4px solid #ff4b4b;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-    }
-    </style>
-""", unsafe_allow_html=True)
-
 # =====================================================================
 # 1. SETUP & AUTHENTICATION CONFIGURATION
 # =====================================================================
