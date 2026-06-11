@@ -1,7 +1,3 @@
-import streamlit as st
-from streamlit_oauth import OAuth2Component
-import json
-
 # --- 1. CONFIGURATION & SECRETS ---
 st.set_page_config(page_title="Secure Flashcards", page_icon="🧠", layout="centered")
 
@@ -12,20 +8,17 @@ except KeyError as e:
     st.error(f"❌ Missing Secret Key in Dashboard: {e}")
     st.stop()
 
-# Foundation Google endpoints for standard OAuth2 handshakes
-AUTHORIZE_URL = "https://accounts.google.com/o/oauth2/v2/auth"
-TOKEN_URL = "https://oauth2.googleapis.com/token"
-REFRESH_TOKEN_URL = "https://oauth2.googleapis.com/token"
-REVOKE_TOKEN_URL = "https://oauth2.googleapis.com/revoke"
+# Define core endpoints
+AUTHORIZE_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth"
+TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token"
 
-# Initialize the clean OAuth engine
+# Initialize using positional arguments in order:
+# 1. client_id, 2. client_secret, 3. authorize_endpoint, 4. token_endpoint
 oauth2 = OAuth2Component(
-    client_id=client_id,
-    client_secret=client_secret,
-    authorize_url=AUTHORIZE_URL,
-    token_url=TOKEN_URL,
-    refresh_token_url=REFRESH_TOKEN_URL,
-    revoke_token_url=REVOKE_TOKEN_URL,
+    client_id,
+    client_secret,
+    AUTHORIZE_ENDPOINT,
+    TOKEN_ENDPOINT
 )
 
 # Render Authentication Gates
@@ -33,7 +26,6 @@ if "auth" not in st.session_state:
     st.title("🧠 Secure Daily Flashcards")
     st.write("Please sign in with your Google account to access your private study deck.")
     
-    # This component handles scopes explicitly without appending breaking tracking tags
     result = oauth2.authorize_button(
         name="Continue with Google",
         icon="https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_logo.svg",
@@ -47,9 +39,6 @@ if "auth" not in st.session_state:
         st.rerun()
     else:
         st.stop()
-
-# --- 2. USER IS AUTHENTICATED ---
-token_data = st.session_state["auth"]
 
 # Your application dashboard and flashcard loops go here...
 
