@@ -1,1 +1,1 @@
-streamlit-google-auth
+streamlit-oauth>=0.1.7
