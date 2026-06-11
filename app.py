@@ -1,3 +1,7 @@
+import streamlit as st  # <--- MAKE SURE THIS IS LINE 1
+from streamlit_oauth import OAuth2Component
+import json
+
 # --- 1. CONFIGURATION & SECRETS ---
 st.set_page_config(page_title="Secure Flashcards", page_icon="🧠", layout="centered")
 
@@ -7,6 +11,8 @@ try:
 except KeyError as e:
     st.error(f"❌ Missing Secret Key in Dashboard: {e}")
     st.stop()
+
+# ... rest of your code continues perfectly below ...
 
 # Define core endpoints
 AUTHORIZE_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth"
