@@ -151,14 +151,18 @@ st.divider()
 # =====================================================================
 # 6. ADD DAILY CARD
 # =====================================================================
+# =====================================================================
+# 6. ADD DAILY CARD (UPDATED)
+# =====================================================================
 st.header("📝 Today's New Card")
 if today_str in data:
     st.success("✨ Today's card is locked in!")
     st.info(f"**Front:** {data[today_str]['front']}  \n**Back:** {data[today_str]['back']}")
 else:
+    # Added 'key="main_input_form"' to stabilize the input state
     with st.form("add_card_form", clear_on_submit=True):
-        front = st.text_input("Front (Concept/Question)")
-        back = st.text_input("Back (Answer/Definition)")
+        front = st.text_input("Front (Concept/Question)", key="input_front")
+        back = st.text_input("Back (Answer/Definition)", key="input_back")
         submitted = st.form_submit_button("Save Today's Card", use_container_width=True)
         
         if submitted:
