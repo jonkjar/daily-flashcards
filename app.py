@@ -57,39 +57,20 @@ if "auth" not in st.session_state:
 # =====================================================================
 token_data = st.session_state["auth"]
 
-# Decode the id_token payload from Google to get real user details
-if "id_token" in token_data:
-    import base64
-    import json
-
-    # Google id_token is a JWT (JSON Web Token). The middle section contains the profile info.
-    try:
-        jwt_parts = token_data["id_token"].split(".")
-        if len(jwt_parts) >= 2:
-            # Fix padding issues during base64 decoding if they exist
-            payload_b64 = jwt_parts[1] + "===" 
-            decoded_bytes = base64.b64decode(payload_b64)[:len(payload_b64)]
-            # Convert bytes back to a readable python dictionary
-            user_info = json.loads(decoded_bytes)
-            
-            user_email = user_info.get("email", "unknown@gmail.com")
-            user_name = user_info.get("name", "User")
-            user_id = user_info.get("sub", user_email.split('@')[0]) # 'sub' is Google's unique user ID
-        else:
-            user_email = "unknown@gmail.com"
-            user_name = "User"
-            user_id = "default_user"
-    except Exception:
-        # Fallback security defaults if decoding chokes
-        user_email = "unknown@gmail.com"
-        user_name = "User"
-        user_id = "default_user"
-else:
-    # Backup lookup if id_token isn't present
-    user_info = token_data.get("user_info", {})
+# streamlit-oauth provides a built-in method to safely query Google for the user's profile
+try:
+    # Pass the active token block directly to the package analyzer
+    user_info = oauth2.get_user_info(token_data)
+    
+    # Extract your clean, verified registration records
     user_email = user_info.get("email", "unknown@gmail.com")
     user_name = user_info.get("name", "User")
-    user_id = token_data.get("oauth_id", user_email.split('@')[0])
+    user_id = user_info.get("id", user_email.split('@')[0]) # Use Google's internal ID, or email prefix as fallback
+except Exception as e:
+    # Ultimate security fallback layout if the query errors out
+    user_email = "unknown@gmail.com"
+    user_name = "User"
+    user_id = "default_user"
 
 # Add a logout button in the sidebar
 with st.sidebar:
