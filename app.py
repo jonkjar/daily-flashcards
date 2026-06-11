@@ -1,12 +1,8 @@
 import streamlit as st
 from streamlit_google_auth import Authenticate
 import json
-import os
-from datetime import datetime, timedelta
 
-# --- 1. CONFIGURATION & SECRETS ---
-st.set_page_config(page_title="Secure Flashcards", page_icon="🧠", layout="centered")
-
+# Fetching secrets from your Streamlit Dashboard safely
 try:
     cookie_secret = st.secrets["STREAMLIT_COOKIE_SECRET"]
     client_id = st.secrets["GOOGLE_CLIENT_ID"]
@@ -15,7 +11,7 @@ except KeyError as e:
     st.error(f"❌ Missing Secret Key in Dashboard: {e}")
     st.stop()
 
-# Build the temporary credentials structure required by the package
+# Structuring the target schema required by the PyPI package
 google_creds = {
     "web": {
         "client_id": client_id,
@@ -26,21 +22,21 @@ google_creds = {
     }
 }
 
-# Write it to a temporary file locally so the package can read it
+# Writing the credentials file the library reads on initialization
 TEMP_CREDS_FILE = "temp_google_creds.json"
 with open(TEMP_CREDS_FILE, "w") as f:
     json.dump(google_creds, f)
 
-# Initialize the authenticator with the exact parameters expected by PyPI package
+# Instantiating the clean interface
 authenticator = Authenticate(
     secret_credentials_path=TEMP_CREDS_FILE,
     cookie_name="google_auth_cookie",
     cookie_key=cookie_secret,
-    redirect_uri="https://daily-flashcards.streamlit.app"
+    redirect_uri="https://daily-flashcards.streamlit.app", # No trailing slash
 )
 
-# Note the package spelling: check_authentification
 authenticator.check_authentification()
+
 
 if not st.session_state.get("connected", False):
     st.title("🧠 Secure Daily Flashcards")
