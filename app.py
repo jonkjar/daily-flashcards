@@ -231,7 +231,7 @@ else:
     st.markdown(f"**Origin:** {label} | **Level:** {current_card['level']}/5 | **Streak:** {current_card['streak']} 🔥")
     st.markdown(f'<div style="background-color: #f0f2f6; padding: 20px; border-radius: 10px; border-left: 5px solid #ff4b4b; margin-bottom: 20px;"><h3 style="color: #31333F;">{current_card["front"]}</h3></div>', unsafe_allow_html=True)
 
-if st.session_state.show_answer:
+    if st.session_state.show_answer:
         # Added min-height: 120px to force 3 lines of space
         st.markdown(f'<div style="background-color: #e8f5e9; padding: 20px; border-radius: 10px; border-left: 5px solid #4caf50; margin-bottom: 20px; min-height: 120px;"><h3 style="color: #2e7d32;">{current_card["back"]}</h3></div>', unsafe_allow_html=True)
         
