@@ -47,6 +47,13 @@ if "auth" not in st.session_state:
     
     if result:
         st.session_state["auth"] = result
+        
+        # THE FIX: Flush the Google tracking code from the URL before rebooting
+        if hasattr(st, "query_params"):
+            st.query_params.clear()
+        elif hasattr(st, "experimental_set_query_params"):
+            st.experimental_set_query_params()
+            
         st.rerun()
     else:
         # Halt application processing cleanly until a login payload returns
