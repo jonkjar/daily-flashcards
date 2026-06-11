@@ -57,20 +57,45 @@ if "auth" not in st.session_state:
 # =====================================================================
 token_data = st.session_state["auth"]
 
-# The new package returns id_token contents inside an access token payload wrapper.
-# If Google does not return user details, we parse standard fallbacks gracefully.
-user_info = token_data.get("user_info", {})
-user_email = user_info.get("email", "unknown@gmail.com")
-user_name = user_info.get("name", "User")
-# Fallback unique key calculation if oauth_id isn't explicitly detached
-user_id = token_data.get("oauth_id", user_email.split('@')[0]) 
+# Decode the id_token payload from Google to get real user details
+if "id_token" in token_data:
+    import base64
+    import json
+
+    # Google id_token is a JWT (JSON Web Token). The middle section contains the profile info.
+    try:
+        jwt_parts = token_data["id_token"].split(".")
+        if len(jwt_parts) >= 2:
+            # Fix padding issues during base64 decoding if they exist
+            payload_b64 = jwt_parts[1] + "===" 
+            decoded_bytes = base64.b64decode(payload_b64)[:len(payload_b64)]
+            # Convert bytes back to a readable python dictionary
+            user_info = json.loads(decoded_bytes)
+            
+            user_email = user_info.get("email", "unknown@gmail.com")
+            user_name = user_info.get("name", "User")
+            user_id = user_info.get("sub", user_email.split('@')[0]) # 'sub' is Google's unique user ID
+        else:
+            user_email = "unknown@gmail.com"
+            user_name = "User"
+            user_id = "default_user"
+    except Exception:
+        # Fallback security defaults if decoding chokes
+        user_email = "unknown@gmail.com"
+        user_name = "User"
+        user_id = "default_user"
+else:
+    # Backup lookup if id_token isn't present
+    user_info = token_data.get("user_info", {})
+    user_email = user_info.get("email", "unknown@gmail.com")
+    user_name = user_info.get("name", "User")
+    user_id = token_data.get("oauth_id", user_email.split('@')[0])
 
 # Add a logout button in the sidebar
 with st.sidebar:
     st.write(f"Logged in as: **{user_name}**")
     st.caption(user_email)
     if st.button("Log Out", use_container_width=True):
-        # Clear out session state completely to invoke the login gateway
         st.session_state.clear()
         st.rerun()
 
