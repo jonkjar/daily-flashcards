@@ -55,19 +55,33 @@ if "auth" not in st.session_state:
 # =====================================================================
 # 3. USER PROFILE RESOLUTION
 # =====================================================================
+import base64
+import json
+
 token_data = st.session_state["auth"]
 
-# streamlit-oauth provides a built-in method to safely query Google for the user's profile
 try:
-    # Pass the active token block directly to the package analyzer
-    user_info = oauth2.get_user_info(token_data)
+    # 1. The library nests the id_token inside a "token" dictionary
+    id_token = token_data["token"]["id_token"]
     
-    # Extract your clean, verified registration records
+    # 2. A JWT token is three strings separated by dots. We want the middle data payload.
+    payload = id_token.split(".")[1]
+    
+    # 3. Fix Base64 padding (Python's decoder strictly requires multiples of 4)
+    payload += "=" * (-len(payload) % 4)
+    
+    # 4. Decode the URL-safe Base64 string back into a Python dictionary
+    decoded_payload = base64.urlsafe_b64decode(payload)
+    user_info = json.loads(decoded_payload)
+    
+    # 5. Extract your true identity records!
     user_email = user_info.get("email", "unknown@gmail.com")
     user_name = user_info.get("name", "User")
-    user_id = user_info.get("id", user_email.split('@')[0]) # Use Google's internal ID, or email prefix as fallback
+    user_id = user_info.get("sub", user_email.split('@')[0]) # 'sub' is Google's unique user ID
+
 except Exception as e:
-    # Ultimate security fallback layout if the query errors out
+    # If it fails, print the exact error to the app so we can see it!
+    st.error(f"Token Decoding Error: {e}")
     user_email = "unknown@gmail.com"
     user_name = "User"
     user_id = "default_user"
