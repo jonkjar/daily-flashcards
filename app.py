@@ -2,6 +2,7 @@ import streamlit as st
 import json
 import os
 import base64
+import gspread
 from datetime import datetime, timedelta
 from streamlit_oauth import OAuth2Component
 
@@ -82,45 +83,68 @@ with st.sidebar:
         st.rerun()
 
 # =====================================================================
-# 4. MULTI-USER STORAGE LOGIC
+# 4. MULTI-USER STORAGE LOGIC (GOOGLE SHEETS)
 # =====================================================================
-DATA_FILE = "global_flashcards_db.json"
 
-def load_all_users_data():
-    if os.path.exists(DATA_FILE):
-        with open(DATA_FILE, "r") as f:
-            try:
-                return json.load(f)
-            except json.JSONDecodeError:
-                return {}
-    return {}
-
-def save_all_users_data(global_data):
-    with open(DATA_FILE, "w") as f:
-        json.dump(global_data, f, indent=4)
+# Initialize the connection to Google Sheets
+@st.cache_resource
+def get_google_sheet():
+    # Authenticate using the dictionary in Streamlit Secrets
+    credentials = dict(st.secrets["gcp_service_account"])
+    gc = gspread.service_account_from_dict(credentials)
+    
+    # Open the master file by its exact name and select the first tab
+    return gc.open("Flashcards_DB").sheet1
 
 def get_user_cards(user_key):
-    global_data = load_all_users_data()
-    user_space = global_data.get(user_key, {})
+    sheet = get_google_sheet()
+    all_records = sheet.get_all_records()
     
-    for date, card in user_space.items():
-        if "level" not in card:
-            card["level"] = 1
-        if "streak" not in card:
-            card["streak"] = 0
-        if "reviews" not in card:
-            card["reviews"] = 0
+    user_space = {}
+    for row in all_records:
+        if row["user_key"] == user_key:
+            user_space[str(row["date"])] = {
+                "front": str(row["front"]),
+                "back": str(row["back"]),
+                "level": int(row["level"]),
+                "streak": int(row["streak"]),
+                "reviews": int(row.get("reviews", 0))
+            }
     return user_space
 
 def save_user_cards(user_key, user_cards):
-    global_data = load_all_users_data()
-    global_data[user_key] = user_cards
-    save_all_users_data(global_data)
+    sheet = get_google_sheet()
+    all_records = sheet.get_all_records()
+    
+    # Keep all data that DOES NOT belong to the current user
+    filtered_records = [row for row in all_records if row["user_key"] != user_key]
+    
+    # Add the current user's updated data block
+    for date, card in user_cards.items():
+        filtered_records.append({
+            "user_key": user_key,
+            "date": date,
+            "front": card["front"],
+            "back": card["back"],
+            "level": card["level"],
+            "streak": card["streak"],
+            "reviews": card["reviews"]
+        })
+    
+    # Format for Google Sheets (List of Lists)
+    header = ["user_key", "date", "front", "back", "level", "streak", "reviews"]
+    rows_to_write = [header] + [[record[col] for col in header] for record in filtered_records]
+    
+    # Sync the master sheet
+    sheet.clear()
+    sheet.update(values=rows_to_write, range_name="A1")
 
+# Load data strictly for the logged-in user
 user_key = f"user_{user_id}"
 data = get_user_cards(user_key)
 today_str = datetime.now().strftime("%Y-%m-%d")
 
+# Initialize session states for tracking review progress
 if "review_index" not in st.session_state:
     st.session_state.review_index = 0
 if "show_answer" not in st.session_state:
